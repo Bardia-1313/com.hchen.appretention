@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AppRetention</string>
+    <string name="app_more">加强后台进程留存，拦截系统自动清理。</string>
+</resources>

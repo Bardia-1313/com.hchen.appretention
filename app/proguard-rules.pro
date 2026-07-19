@@ -1,0 +1,3 @@
+-dontobfuscate
+-keep class com.hchen.appretention.** { *; }
+-keep class com.hchen.hooktool.** { *; }

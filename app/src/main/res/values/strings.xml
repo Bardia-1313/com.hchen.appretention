@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AppRetention</string>
+    <string name="app_more">Improved background process retention and kill prevention.</string>
+</resources>
