@@ -8,21 +8,27 @@ import static com.hchen.appretention.data.method.SystemMethod.freezeAppAsyncLSP;
 import static com.hchen.appretention.data.method.SystemMethod.killAllBackgroundProcesses;
 import static com.hchen.appretention.data.method.SystemMethod.killAllBackgroundProcessesExcept;
 import static com.hchen.appretention.data.method.SystemMethod.killAllBackgroundProcessesExceptLSP;
+import static com.hchen.appretention.data.method.SystemMethod.killAppIfBgRestrictedAndCachedIdleLocked;
 import static com.hchen.appretention.data.method.SystemMethod.killBackgroundProcesses;
 import static com.hchen.appretention.data.method.SystemMethod.killPackageProcesses;
 import static com.hchen.appretention.data.method.SystemMethod.killPackageProcessesLocked;
 import static com.hchen.appretention.data.method.SystemMethod.killPackageProcessesLSP;
 import static com.hchen.appretention.data.method.SystemMethod.killProcessesForRemovedTask;
+import static com.hchen.appretention.data.method.SystemMethod.killProcessLocked;
 import static com.hchen.appretention.data.method.SystemMethod.killTaskProcessesIfPossible;
 import static com.hchen.appretention.data.method.SystemMethod.removeTask;
 import static com.hchen.appretention.data.method.SystemMethod.removeTaskById;
 import static com.hchen.appretention.data.method.SystemMethod.stopAppForUser;
 import static com.hchen.appretention.data.method.SystemMethod.stopAppForUserInternal;
+import static com.hchen.appretention.data.method.SystemMethod.stopAppForUserLocked;
+import static com.hchen.appretention.data.method.SystemMethod.unfreezeAppLSP;
+import static com.hchen.appretention.data.method.SystemMethod.unfreezeAppInternalLSP;
 import static com.hchen.appretention.data.path.SystemClass.ActivityManagerService;
 import static com.hchen.appretention.data.path.SystemClass.ActivityManagerService$LocalService;
 import static com.hchen.appretention.data.path.SystemClass.ActivityTaskSupervisor;
 import static com.hchen.appretention.data.path.SystemClass.CachedAppOptimizer;
 import static com.hchen.appretention.data.path.SystemClass.ProcessList;
+import static com.hchen.appretention.data.path.SystemClass.ProcessRecord;
 import static com.hchen.appretention.log.AppRetentionXposedLog.logD;
 import static com.hchen.appretention.log.AppRetentionXposedLog.logW;
 import static com.hchen.hooktool.core.CoreTool.findAllMethod;
@@ -32,14 +38,30 @@ import com.hchen.hooktool.hook.IHook;
 import com.hchen.hooktool.utils.SystemPropTool;
 import java.lang.reflect.Method;
 import java.util.Locale;
+/**
+ * Policy implementation that restricts process termination to explicit user actions.
+ *
+ * This class hooks into various entry points of ActivityManagerService and ProcessList
+ * to intercept and block automated system kills (e.g., background cleanup, cached app
+ * trimming) while allowing "real" force-stops initiated by the user or critical
+ * package maintenance events.
+ */
 public final class ForceStopOnlyPolicy {
     private static final String TAG = "ForceStopOnlyPolicy";
+
+    /**
+     * Standard exit reasons defined in ActivityManager.
+     */
     private static final int EXIT_REASON_USER_REQUESTED = 10;
     private static final int EXIT_REASON_PERMISSION_CHANGE = 8;
     private static final int EXIT_REASON_USER_STOPPED = 11;
     private static final int EXIT_REASON_PACKAGE_STATE_CHANGE = 15;
     private static final int EXIT_REASON_PACKAGE_UPDATED = 16;
     private static final int EXIT_REASON_PACKAGE_REMOVED = 13;
+
+    /**
+     * Sub-reasons used to differentiate between system-initiated and user-initiated actions.
+     */
     private static final int EXIT_SUBREASON_FORCE_STOP = 21;
     private static final int EXIT_SUBREASON_PACKAGE_UPDATE = 25;
     private static final String PROP_ENABLE = "persist.hchen.retention.force_stop_only";
@@ -54,6 +76,7 @@ public final class ForceStopOnlyPolicy {
         }
         hookActivityManagerKillEntrypoints();
         hookProcessListKillEntrypoints();
+        hookProcessRecordKillEntrypoint();
         hookRecentTaskRemoval();
         hookCachedAppFreezer();
     }
@@ -61,8 +84,10 @@ public final class ForceStopOnlyPolicy {
         hookAllIfExists(ActivityManagerService, killBackgroundProcesses, blockCurrentMethodHook());
         hookAllIfExists(ActivityManagerService, killAllBackgroundProcesses, blockCurrentMethodHook());
         hookAllIfExists(ActivityManagerService, killAllBackgroundProcessesExcept, blockCurrentMethodHook());
-        hookAllIfExists(ActivityManagerService, stopAppForUser, blockCurrentMethodHook());
-        hookAllIfExists(ActivityManagerService, stopAppForUserInternal, blockCurrentMethodHook());
+        hookAllIfExists(ActivityManagerService, stopAppForUser, forceStopGateFactory());
+        hookAllIfExists(ActivityManagerService, stopAppForUserInternal, forceStopGateFactory());
+        hookAllIfExists(ActivityManagerService, stopAppForUserLocked, forceStopGateFactory());
+        hookAllIfExists(ActivityManagerService, killAppIfBgRestrictedAndCachedIdleLocked, blockCurrentMethodHook());
     }
     private static void hookProcessListKillEntrypoints() {
         hookAllIfExists(ProcessList,
@@ -93,6 +118,46 @@ public final class ForceStopOnlyPolicy {
             blockCurrentMethodHook()
         );
     }
+    private static void hookProcessRecordKillEntrypoint() {
+        hookAllIfExists(ProcessRecord, killProcessLocked,
+            new MethodHookFactory() {
+                @Override
+                public IHook create(final Method method) {
+                    return new IHook() {
+                        @Override
+                        public void before() {
+                            Class<?>[] types = method.getParameterTypes();
+                            String description = lastStringArg(this, types);
+                            int count = types.length;
+                            if (count >= 3
+                                && types[count - 3] == int.class
+                                && types[count - 2] == int.class
+                                && types[count - 1] == String.class) {
+                                int reason = intArg(this, count - 3, Integer.MIN_VALUE);
+                                int subReason = intArg(this, count - 2, Integer.MIN_VALUE);
+                                if (isRealForceStop(reason, subReason)) return;
+                                if (isAllowedMaintenanceReason(reason)) return;
+                                if (subReason == EXIT_SUBREASON_PACKAGE_UPDATE) return;
+                                if (looksLikePackageMaintenance(description)) return;
+                            } else if (count >= 2
+                                && types[count - 2] == int.class
+                                && types[count - 1] == String.class) {
+                                int reason = intArg(this, count - 2, Integer.MIN_VALUE);
+                                if (isRealForceStop(reason, -1)) return;
+                                if (isAllowedMaintenanceReason(reason)) return;
+                                if (looksLikeExplicitForceStop(description)) return;
+                                if (looksLikePackageMaintenance(description)) return;
+                            } else {
+                                if (looksLikeExplicitForceStop(description)
+                                    || looksLikePackageMaintenance(description)) return;
+                            }
+                            setResult(defaultValue(method.getReturnType()));
+                        }
+                    };
+                }
+            }
+        );
+    }
     private static void hookRecentTaskRemoval() {
         if (!SystemPropTool.getProp(PROP_PROTECT_RECENTS, true)) {
             logD(TAG, "Recent-task protection is disabled.");
@@ -115,6 +180,8 @@ public final class ForceStopOnlyPolicy {
         hookAllIfExists(CachedAppOptimizer, freezeAppAsyncAtEarliestLSP, blockCurrentMethodHook());
         hookAllIfExists(CachedAppOptimizer, freezeAppAsyncImmediateLSP, blockCurrentMethodHook());
         hookAllIfExists(CachedAppOptimizer, freezeAppAsyncInternalLSP, blockCurrentMethodHook());
+        hookAllIfExists(CachedAppOptimizer, unfreezeAppLSP, blockCurrentMethodHook());
+        hookAllIfExists(CachedAppOptimizer, unfreezeAppInternalLSP, blockCurrentMethodHook());
     }
     private static MethodHookFactory packageKillGateFactory() {
         return new MethodHookFactory() {
@@ -169,6 +236,17 @@ public final class ForceStopOnlyPolicy {
         if (type == char.class) return (char) 0;
         return null;
     }
+    /**
+     * Determines if a package kill request should be permitted.
+     *
+     * We allow kills if:
+     * 1. It's a real force-stop requested by the user (EXIT_REASON_USER_REQUESTED + EXIT_SUBREASON_FORCE_STOP).
+     * 2. The package is being uninstalled, updated, or its state changed.
+     * 3. It's a critical lifecycle event like permission revocation or user logout.
+     *
+     * Automated background kills for memory management (e.g., "kill background processes")
+     * are blocked by returning false or nullifying the operation.
+     */
     private static boolean isAllowedPackageKill(IHook hook, Method method) {
         Class<?>[] types = method.getParameterTypes();
         int count = types.length;
@@ -213,7 +291,8 @@ public final class ForceStopOnlyPolicy {
         return reason == EXIT_REASON_PERMISSION_CHANGE
             || reason == EXIT_REASON_USER_STOPPED
             || reason == EXIT_REASON_PACKAGE_STATE_CHANGE
-            || reason == EXIT_REASON_PACKAGE_UPDATED;
+            || reason == EXIT_REASON_PACKAGE_UPDATED
+            || reason == EXIT_REASON_PACKAGE_REMOVED;
     }
     private static boolean hasLegacyForceStopFlags(IHook hook, Class<?>[] types) {
         if (types.length < 10
@@ -274,6 +353,40 @@ public final class ForceStopOnlyPolicy {
             if (types[i] == boolean.class) return i;
         }
         return -1;
+    }
+    private static MethodHookFactory forceStopGateFactory() {
+        return new MethodHookFactory() {
+            @Override
+            public IHook create(final Method method) {
+                return new IHook() {
+                    @Override
+                    public void before() {
+                        if (isForceStopFromAppInfo()) return;
+                        setResult(defaultValue(method.getReturnType()));
+                    }
+                };
+            }
+        };
+    }
+    private static boolean isForceStopFromAppInfo() {
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        for (StackTraceElement frame : stack) {
+            String cls = frame.getClassName();
+            if (cls == null) continue;
+            if (cls.contains("ActivityManagerShellCommand")
+                || cls.contains("com.android.server.pm.")
+                || cls.contains("InstallerConnection")
+                || cls.contains("PackageInstallerSession")) {
+                return true;
+            }
+            String mtd = frame.getMethodName();
+            if (mtd == null) continue;
+            if ("forceStopPackage".equals(mtd)
+                || "forceStopPackageLocked".equals(mtd)) {
+                return true;
+            }
+        }
+        return false;
     }
     private interface MethodHookFactory {
         IHook create(Method method);

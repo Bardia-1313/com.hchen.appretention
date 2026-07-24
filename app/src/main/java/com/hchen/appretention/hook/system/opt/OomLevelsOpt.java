@@ -14,7 +14,19 @@ import com.hchen.hooktool.hook.IHook;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+/**
+ * Optimization for Out-Of-Memory (OOM) minfree levels.
+ *
+ * This class reduces the aggressiveness of the Low Memory Killer (LMK) by applying
+ * a discount factor to the system's minfree thresholds. By dividing the minfree
+ * values, we trick the kernel-side LMKD into being more lenient, allowing more
+ * background processes to persist even when free memory is low.
+ */
 public final class OomLevelsOpt {
+    /**
+     * The discount factor used to scale down minfree levels.
+     * Higher values make the system more "sticky" for background apps.
+     */
     private static final int OOM_MIN_FREE_DISCOUNT = 3;
     private static final int PAGE_SIZE = (int) Os.sysconf(OsConstants._SC_PAGESIZE);
     private static Object mProcessListInstance = null;
@@ -83,6 +95,9 @@ public final class OomLevelsOpt {
         int[] mOomMinFree = (int[]) getField(processListInstance, SystemField.mOomMinFree);
         if (mOomMinFree == null)
             return null;
+
+        // Apply a discount to minfree values to make the Low Memory Killer less aggressive.
+        // This keeps more processes in the cached state for longer.
         int[] mOomMinFreeArray = Arrays.stream(mOomMinFree).map(operand -> operand / OOM_MIN_FREE_DISCOUNT).toArray();
         setField(processListInstance, SystemField.mOomMinFree, mOomMinFreeArray);
         return mOomMinFreeArray;

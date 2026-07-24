@@ -68,7 +68,7 @@ import android.os.HandlerThread;
 import android.os.Process;
 import androidx.annotation.NonNull;
 import com.hchen.appretention.data.field.SystemField;
-import com.hchen.appretention.data.other.PrecessAdjInfo;
+import com.hchen.appretention.data.other.ProcessAdjInfo;
 import com.hchen.hooktool.hook.IHook;
 import com.hchen.hooktool.utils.SystemPropTool;
 import java.lang.reflect.Constructor;
@@ -191,16 +191,16 @@ public final class CacheCompaction {
                     Integer setAdj = getSetAdj(app);
                     if (curAdj == null || setAdj == null) return;
                     if (Objects.equals(curAdj, setAdj)) return;
-                    if (setAdj <= PrecessAdjInfo.PERCEPTIBLE_APP_ADJ && (
-                        (curAdj >= PrecessAdjInfo.PREVIOUS_APP_ADJ && curAdj <= PrecessAdjInfo.PREVIOUS_APP_ADJ + 99) ||
-                            (curAdj >= PrecessAdjInfo.HOME_APP_ADJ && curAdj <= PrecessAdjInfo.HOME_APP_ADJ + 99)
-                    )) { 
+                    if (setAdj <= ProcessAdjInfo.PERCEPTIBLE_APP_ADJ && (
+                        (curAdj >= ProcessAdjInfo.PREVIOUS_APP_ADJ && curAdj <= ProcessAdjInfo.PREVIOUS_APP_ADJ + 99) ||
+                            (curAdj >= ProcessAdjInfo.HOME_APP_ADJ && curAdj <= ProcessAdjInfo.HOME_APP_ADJ + 99)
+                    )) {
                         if (ANON != null && ANON_MORE == null) {
                             compactApp(app, COMPACT_ACTION_ANON, ANON, SHELL, false);
                         } else if (ANON_MORE != null) {
                             compactApp(app, COMPACT_ACTION_ANON, ANON_MORE, SHELL, false);
                         }
-                    } else if (curAdj >= PrecessAdjInfo.CACHED_APP_MIN_ADJ && curAdj <= PrecessAdjInfo.CACHED_APP_MAX_ADJ) {
+                    } else if (curAdj >= ProcessAdjInfo.CACHED_APP_MIN_ADJ && curAdj <= ProcessAdjInfo.CACHED_APP_MAX_ADJ) {
                         compactApp(app, COMPACT_ACTION_FULL, FULL, SHELL, false);
                     }
                 }
@@ -248,7 +248,7 @@ public final class CacheCompaction {
                     if (rssBefore == null) return;
                     long anonRssBefore = rssBefore[2];
                     if (rssBefore[0] == 0 && rssBefore[1] == 0 && rssBefore[2] == 0 && rssBefore[3] == 0) {
-                        setResult(true); 
+                        setResult(true);
                         return;
                     }
                     if (anonRssBefore < (1024 * 6)) {
@@ -329,7 +329,7 @@ public final class CacheCompaction {
                         optRecord = getField(app, mOptRecord);
                         Handler compactionHandler = (Handler) getThisField(mCompactionHandler);
                         Object pendingCompactionProcesses = getThisField(mPendingCompactionProcesses);
-                        if (getCurAdj() > PrecessAdjInfo.PERCEPTIBLE_APP_ADJ && getCurAdj() < PrecessAdjInfo.PREVIOUS_APP_ADJ) {
+                        if (getCurAdj() > ProcessAdjInfo.PERCEPTIBLE_APP_ADJ && getCurAdj() < ProcessAdjInfo.PREVIOUS_APP_ADJ) {
                             setReqCompactSource(SHEll);
                             setReqCompactProfile(ANON);
                             if (!hasPendingCompact()) {
@@ -338,7 +338,7 @@ public final class CacheCompaction {
                                     compactionHandler.sendMessage(compactionHandler.obtainMessage(1, getCurAdj(), getSetProcState()));
                                 }
                             }
-                        } else if (getCurAdj() >= PrecessAdjInfo.PREVIOUS_APP_ADJ && getCurAdj() <= PrecessAdjInfo.CACHED_APP_MAX_ADJ) {
+                        } else if (getCurAdj() >= ProcessAdjInfo.PREVIOUS_APP_ADJ && getCurAdj() <= ProcessAdjInfo.CACHED_APP_MAX_ADJ) {
                             setReqCompactSource(SHEll);
                             setReqCompactProfile(FULL);
                             if (!hasPendingCompact()) {
@@ -443,7 +443,7 @@ public final class CacheCompaction {
                     long[] rssBefore = (long[]) getArg(3);
                     long anonRssBefore = rssBefore[2];
                     if (rssBefore[0] == 0 && rssBefore[1] == 0 && rssBefore[2] == 0 && rssBefore[3] == 0) {
-                        setResult(true); 
+                        setResult(true);
                         return;
                     }
                     if (anonRssBefore < (1024 * 6)) {

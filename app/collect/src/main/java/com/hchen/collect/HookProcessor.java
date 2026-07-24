@@ -13,6 +13,15 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
+/**
+ * Annotation processor for generating the Hook Entrance Map.
+ *
+ * This processor scans for {@link HookEntrance} annotations during compilation
+ * and generates the {@code EntranceMap} source file. This decoupled approach
+ * allows for easy registration of new ROM-specific or version-specific hooks
+ * by simply annotating the hook class, avoiding manual maintenance of a
+ * central registry.
+ */
 @AutoService(Processor.class)
 @SupportedAnnotationTypes("com.hchen.collect.HookEntrance")
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
@@ -22,6 +31,9 @@ public class HookProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (isProcessed) return true;
         isProcessed = true;
+
+        // Generate the EntranceMap source file. This class serves as a static registry
+        // for all hook classes annotated with @HookEntrance.
         try (Writer writer = processingEnv.getFiler().createSourceFile("com.hchen.appretention.hook.EntranceMap").openWriter()) {
             writer.write("""
                 package com.hchen.appretention.hook;

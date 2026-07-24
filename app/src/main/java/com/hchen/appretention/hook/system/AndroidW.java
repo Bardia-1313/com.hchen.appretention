@@ -137,16 +137,26 @@ public class AndroidW extends HCBase {
             .findMethodIfExist(updatePerfConfigConstants) 
             .doNothing();
         setStaticField(ActivityManagerConstants, PROACTIVE_KILLS_ENABLED, false);
-        hookMethod(OomAdjuster,
-            updateAndTrimProcessLSP,
-            long.class, long.class, long.class,
-            ActiveUids, int.class, boolean.class ,
-            new IHook() {
-                @Override
-                public void before() {
-                    setThisField(mNextNoKillDebugMessageTime, Long.MAX_VALUE); 
-                }
+        IHook trimProcessHook = new IHook() {
+            @Override
+            public void before() {
+                setThisField(mNextNoKillDebugMessageTime, Long.MAX_VALUE);
             }
-        );
+        };
+        if (existsMethod(OomAdjuster, updateAndTrimProcessLSP,
+            long.class, long.class, long.class, ActiveUids, int.class, boolean.class)) {
+            hookMethod(OomAdjuster, updateAndTrimProcessLSP,
+                long.class, long.class, long.class,
+                ActiveUids, int.class, boolean.class,
+                trimProcessHook);
+        } else if (existsMethod(OomAdjuster, updateAndTrimProcessLSP,
+            long.class, long.class, long.class, ActiveUids, int.class)) {
+            hookMethod(OomAdjuster, updateAndTrimProcessLSP,
+                long.class, long.class, long.class,
+                ActiveUids, int.class,
+                trimProcessHook);
+        } else {
+            hookMethodIfExists(OomAdjuster, updateAndTrimProcessLSP, trimProcessHook);
+        }
     }
 }

@@ -27,8 +27,10 @@ import static com.hchen.appretention.data.path.SystemClass.Task;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import com.hchen.appretention.hook.system.opt.ApplyAdjOpt;
 import com.hchen.appretention.hook.system.opt.CacheCompaction;
 import com.hchen.appretention.hook.system.opt.ForceStopOnlyPolicy;
+import com.hchen.appretention.hook.system.opt.OomLevelsOpt;
 import com.hchen.collect.HookEntrance;
 import com.hchen.hooktool.HCBase;
 import com.hchen.hooktool.hook.IHook;
@@ -36,7 +38,9 @@ import com.hchen.hooktool.hook.IHook;
 public class AndroidDef extends HCBase {
     @Override
     protected void init() {
+        OomLevelsOpt.init();
         CacheCompaction.enableCompaction();
+        ApplyAdjOpt.init();
         ForceStopOnlyPolicy.init();
         hookMethod(ProcessList,
             killProcessesWhenImperceptible,

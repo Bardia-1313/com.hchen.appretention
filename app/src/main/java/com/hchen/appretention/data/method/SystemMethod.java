@@ -82,4 +82,8 @@ public class SystemMethod {
     public static final String performReceive = "performReceive";
     public static final String handleAppCrashInActivityController = "handleAppCrashInActivityController";
     public static final String getLruProcessesLOSP = "getLruProcessesLOSP";
+    public static final String unfreezeAppLSP = "unfreezeAppLSP";
+    public static final String unfreezeAppInternalLSP = "unfreezeAppInternalLSP";
+    public static final String stopAppForUserLocked = "stopAppForUserLocked";
+    public static final String killAppIfBgRestrictedAndCachedIdleLocked = "killAppIfBgRestrictedAndCachedIdleLocked";
 }

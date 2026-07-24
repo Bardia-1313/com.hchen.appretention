@@ -1,157 +1,81 @@
 <div align="center">
-<h1>AppRetentionHook</h1>
+<h1>AppRetention Framework</h1>
 
 ![stars](https://img.shields.io/github/stars/HChenX/AppRetentionHook?style=flat)
 ![downloads](https://img.shields.io/github/downloads/HChenX/AppRetentionHook/total)
 ![Github repo size](https://img.shields.io/github/repo-size/HChenX/AppRetentionHook)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/HChenX/AppRetentionHook)](https://github.com/HChenX/AppRetentionHook/releases)
-[![GitHub Release Date](https://img.shields.io/github/release-date/HChenX/AppRetentionHook)](https://github.com/HChenX/AppRetentionHook/releases)
-![last commit](https://img.shields.io/github/last-commit/HChenX/AppRetentionHook?style=flat)
 ![language](https://img.shields.io/badge/language-java-purple)
 
 <p><b><a href="README-en.md">English</a> | <a href="README.md">简体中文</a></b></p>
-<p>Hook system kill logic to implement background keep alive</p>
+<p>Advanced System-Level Instrumentation for Background Process Retention</p>
 </div>
 
 ---
 
-## ✨ Module Introduction
+## 🛠 Project Overview
 
-AppRetentionHook is an **LSP module** that implements **background retention** by hooking into the
-system’s kill logic.
-📌 **Version 5.1+ is a completely refactored new version!!** Give it a try!
+**AppRetention** is a specialized LSPosed module designed to instrument the Android `system_server` and intercept process termination logic. By implementing a **Force-Stop-Only** policy, it ensures that background applications remain resident in memory unless explicitly terminated by the user or required by critical system maintenance.
 
-🔹 **Supported Systems** (for version 5.1+):
-
-- ✅ **HyperOS V1 / V2**
-- ✅ **AOSP 10-16**
-- ✅ **Samsung OneUI** (Usage scope is unknown)
-- 🚧 **Color OS** (Not fully adapted yet, but usable)
+### Key Capabilities
+- **Automated Kill Interception**: Blocks system-initiated process trimming based on idle state, process count limits, or cached app policies.
+- **ROM-Specific Adaptation**: Tailored logic for **HyperOS (V1/V2)**, **AOSP (10-16)**, and **Samsung OneUI**.
+- **OOM Adj Optimization**: Dynamically adjusts process priorities to stabilize the background LRU list.
+- **Recents Protection**: Prevents process death when swiping tasks from the Recent Apps screen.
 
 ---
 
-## 🛠 Usage Notice
+## ⚙️ How it Works
 
-> 📌 **Why might some applications still be killed?**
-> **This module only intercepts kills triggered by system scheduling; it cannot address application
-crashes, self-termination, or other similar behaviors!**
+The module hooks into core Android framework entrypoints:
+- `ActivityManagerService`: Intercepts `killBackgroundProcesses` and `stopAppForUser`.
+- `ProcessList`: Filters `killPackageProcesses` based on exit reasons and descriptions.
+- `CachedAppOptimizer`: Disables or tunes the background freezer and compaction triggers.
 
-📌 **Intercepted Kill Sources (system behaviors):**
+### Intercepted Vectors:
+- **Idle Cleanup**: Prevents the system from killing apps left unused for extended periods.
+- **Memory Pressure (Framework-level)**: Blocks non-critical cleanup triggered by the `system_server`.
+- **Process Limits**: Overrides the maximum background process constraints.
 
-- Idle device cleanup
-- Process count limitations
-- Maximum background process restrictions
-- Restricted application policies
-- Scheduled task cleanup
-- Doze/empty process restrictions
-
-⚠ **The module does NOT intercept the following kill behaviors:**
-
-- Active killing by lmkd (triggered by memory overload)
-- Application ANR (not responding), updates, self-termination, uninstallation, crashes, etc.
-
-💡 **Module Objective:**
-**Opened applications will not be killed due to system scheduling, thereby prolonging their
-background retention as much as possible!**
+*Note: This module does not interfere with the kernel-level Low Memory Killer (LMKD) or application-level crashes/ANRs.*
 
 ---
 
-## 🔧 Installation and Usage
+## 🚀 Installation & Configuration
 
-📌 **Please enable this module within LSP!**
+1. **Install** the latest release.
+2. **Enable** in the LSPosed Manager.
+3. **Configure Scope**:
+    - **MIUI / HyperOS**: `System Framework`, `Security Center`, and `Battery & Performance (powerkeeper)`.
+    - **AOSP / Other**: `System Framework`.
+4. **Reboot** to apply instrumentation.
 
-1. **Installation**: Download and install this module.
-2. **Activation**: Open LSP, select this module, and enable it.
-3. **Select the applicable scopes** (depending on the system):
-    - **MIUI / HyperOS**: `System Framework (system)` and
-      `Battery & Performance (powerkeeper)` [if available]
-    - **Color OS**: `Athena`, `Battery`, and `System Framework (system)` (Note: Version 5.1+ is not
-      fully adapted for Color OS, but it is usable)
-    - **OneUI**: `System Framework (system)`
-4. **Restart your device!**
-
----
-
-## 🌟 Module Effects
-
-✅ Testing shows that the background retention time of apps has **significantly increased**, with no
-system-initiated app kills observed over extended periods.
-✅ **Even after an entire night, apps continue to run in the background.**
-✅ **Example Apps** (including but not limited to):
-
-- QQ, Bilibili, Douyin
-- GitHub (Android), Twitter (X), Telegram, YouTube, etc.
+### System Properties
+Advanced users can tune the module via `setprop`:
+- `persist.hchen.retention.force_stop_only`: Toggle master policy.
+- `persist.hchen.retention.protect_recents`: Toggle Recents protection.
+- `persist.hchen.adj.opt.enable`: Toggle OOM Adjustment optimization.
 
 ---
 
-## ⚠ Potential Issues
+## ⚖️ Technical Disclaimer
 
-⚠ **Due to modifications in the system’s operational logic, this module may have the following
-impacts:**
+This module modifies critical system behaviors. While optimized for stability, users should be aware that preventing automated cleanup may lead to:
+- Increased memory usage under heavy multitasking.
+- Higher standby power consumption if many active services are retained.
+- Potential system freezes if physical RAM is fully exhausted.
 
-1. **Failure of system memory management**: When memory is low, automatic cleanup will not occur,
-   which may result in system freezes.
-2. **Increased standby power consumption**: Although the impact is minor, battery usage may be
-   slightly higher.
-3. **Some devices may experience boot hang issues.**
-
-🚨 **Strongly Recommended**: Please ensure you have a backup before using this module to avoid
-extreme issues such as failure to boot!
+**Always maintain a recovery backup before applying system-level hooks.**
 
 ---
 
-## 🔍 Frequently Asked Questions
+## 🙏 Credits
 
-❓ **Q: How do I use this module?**
-💡 A: Please carefully read the README and ensure that the correct LSP scopes are configured.
-
-❓ **Q: Does this module conflict with other retention modules?**
-💡 A: Yes, **please do not use multiple modules with the same functionality simultaneously!**
-Examples of conflicting modules include:
-
-- **Don-t-Kill**
-- **Cemiuiler** (overlapping functionalities)
-- **A1 Memory Management LSP Module**
-
-❓ **Q: Why is my system freezing?**
-💡 A: Please check your device's **memory usage**. This module does not perform automatic memory
-cleanup.
-
-❓ **Q: Why has my standby power consumption increased?**
-💡 A: With apps staying alive in the background for longer, **increased power consumption is a normal
-phenomenon**, though the impact is minimal.
-
-❓ **Q: Why does my device hang during boot?**
-💡 A: Some devices may be incompatible. If you encounter this issue, please uninstall the module and
-provide feedback.
+Technical inspiration and reference logic:
+- [Cemiuiler Project](https://github.com/Team-Cemiuiler/Cemiuiler)
+- [Don't Kill](https://github.com/HChenX/Don-t-Kill)
 
 ---
-
-## 🙏 Acknowledgments
-
-💡 Some parts of this module's code reference the following projects. Special thanks to:
-
-| Project Name | Project Link                                                              |
-|--------------|---------------------------------------------------------------------------|
-| Cemiuiler    | [Cemiuiler GitHub](https://github.com/Team-Cemiuiler/Cemiuiler/tree/main) |
-| Don't Kill   | [Don-t-Kill](https://github.com/HChenX/Don-t-Kill)                        |
-| HookTool     | [HookTool](https://github.com/HChenX/HookTool)                            |
-
-📌 **Translation Provided By:**
-
-- **English**: HChen (焕晨HChen), ℓοѕτ οиє ⌕ — 🚫🥄 (Telegram Name)
-- **Simplified Chinese**: HChen (焕晨HChen)
-
----
-
-## 📢 Project Disclaimer
-
-⚠ **By using this module, you agree to assume all risks and consequences!**
-⚠ **This project is not responsible for any derivative projects!**
-⚠ **Plagiarism will result in the project becoming closed source! Please attribute the author!**
-
----
-
-## 🎉 Conclusion
-
-💖 **Thank you for your support. Enjoy your day!** 🚀
+<div align="center">
+Built for power users and system enthusiasts.
+</div>

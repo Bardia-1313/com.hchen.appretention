@@ -44,11 +44,11 @@ public class CrashEvent extends HCBase {
                     int callingPid = (int) Optional.ofNullable(getArg(6)).orElse(-1);
                     int callingUid = (int) Optional.ofNullable(getArg(7)).orElse(-1);
                     if ("Native crash".equals(crashInfo.exceptionClassName))
-                        return; 
-                    logE(TAG, "A crash event has occurred! Caught! Please note that crashes are not necessarily caused by modules!" +
-                        "\n[Crash Package]: " + mContext.getPackageName() + "\n[Proc]: " + proc +
-                        "\n[Time]: " + timeMillis + " ms\n[Calling PID]: " + callingPid + "\n[Calling UID]: " + callingUid +
-                        "\n[Crash Info]: " + crashInfo + "\n[Short Msg]: " + shortMsg + "\n[Long Msg]: " + longMsg + "\n[Stack]: " + stackTrace);
+                        return;
+                    logE(TAG, "Intercepted application crash event." +
+                        "\n[Target Package]: " + mContext.getPackageName() + "\n[Process]: " + proc +
+                        "\n[Timestamp]: " + timeMillis + " ms\n[Caller PID]: " + callingPid + "\n[Caller UID]: " + callingUid +
+                        "\n[Exception]: " + crashInfo.exceptionClassName + "\n[Short Msg]: " + shortMsg + "\n[Long Msg]: " + longMsg + "\n[Stack Trace]: " + stackTrace);
                 }
             }
         );

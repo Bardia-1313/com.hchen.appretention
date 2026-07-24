@@ -140,7 +140,7 @@ public final class OemProcessProtection {
     }
     private static Object defaultValue(Class<?> type) {
         if (type == void.class) return null;
-        if (type == boolean.class) return true;
+        if (type == boolean.class) return false;
         if (type == byte.class) return (byte) 0;
         if (type == short.class) return (short) 0;
         if (type == int.class) return 0;

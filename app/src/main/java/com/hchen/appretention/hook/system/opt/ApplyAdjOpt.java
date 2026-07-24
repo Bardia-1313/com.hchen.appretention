@@ -48,6 +48,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+/**
+ * Process Priority (OOM Adjustment) Optimization.
+ *
+ * This class implements a custom strategy for managing process priorities (adj).
+ * Instead of letting the system aggressively move background apps to high adj values
+ * (which makes them more likely to be killed), it maintains a list of recently used
+ * background apps and assigns them specific, stable adj values within a protected range.
+ *
+ * Specifically:
+ * - Main processes are kept in the 600-699 range.
+ * - Sub-processes are kept in the 700-799 range.
+ *
+ * This ensures that apps the user was recently interacting with stay in memory
+ * longer than they would under the default Android LRU management.
+ */
 public class ApplyAdjOpt {
     private static final String TAG = "ApplyAdjOpt";
     private static final ArrayList<ProcessIndexRecord> mPreviousBackgroundAppList = new ArrayList<>();
@@ -133,6 +148,7 @@ public class ApplyAdjOpt {
                         }
                     }
                     if (index == -1) return;
+                    // Calculate custom adj based on process type and its LRU index.
                     ApplyAdjOpt.ProcessRecord pr = new ApplyAdjOpt.ProcessRecord(app);
                     int adj = (pr.isMainProcess || pr.isolated || pr.isSdkSandbox) ?
                         Math.min(MAIN_PROCESS_MIN_ADJ + index, MAIN_PROCESS_MAX_ADJ) :
@@ -161,7 +177,7 @@ public class ApplyAdjOpt {
                     callMethod(mState, getCurProcState)
                 );
                 if (importance != null) {
-                    if (importance > ImportanceInfo.IMPORTANCE_VISIBLE) { 
+                    if (importance > ImportanceInfo.IMPORTANCE_VISIBLE) {
                         ArrayList<?> lruProcesses = (ArrayList<?>) callMethod(mProcessList, getLruProcessesLOSP);
                         if (lruProcesses == null) return;
                         int nowIndex = lruProcesses.indexOf(app);

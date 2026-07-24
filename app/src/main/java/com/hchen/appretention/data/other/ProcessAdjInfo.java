@@ -1,5 +1,13 @@
 package com.hchen.appretention.data.other;
-public final class PrecessAdjInfo {
+
+/**
+ * Android Out-of-Memory (OOM) Adjustment values.
+ *
+ * This class provides standard constant values for process priorities (adj).
+ * These values are used by the OomAdjuster to decide which processes to kill
+ * when the system is low on memory.
+ */
+public final class ProcessAdjInfo {
     public static final int INVALID_ADJ = -10000;
     public static final int UNKNOWN_ADJ = 1001;
     public static final int CACHED_APP_MAX_ADJ = 999;
