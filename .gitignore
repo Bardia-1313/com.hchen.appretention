@@ -25,3 +25,5 @@ local.properties
 /color
 /color/.*
 .artifacts/
+.idea/
+.vscode/
